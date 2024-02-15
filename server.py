@@ -7,6 +7,7 @@ from channel import ICMP_Channel_Server, Channel_Transport
 parser = argparse.ArgumentParser()
 parser.add_argument("-b", "--bind", type=str, default="0.0.0.0", help="Bind to this IP")
 parser.add_argument("-e", "--encoding", type=str, default="utf-8", help="Encoding to use")
+parser.add_argument("-i", "--identifier", type=int, default=1, help="Identifer for ICMP packets shared between client and server (1-65535)")
 parser.add_argument("-v", "--verbose", action='store_true', help="Increase output verbosity")
 args = parser.parse_args()
 
@@ -21,6 +22,7 @@ logger.addHandler(handler)
 
 # Step 1: Initialize ICMP channel
 icmp = ICMP_Channel_Server(logger, args.bind)
+icmp.set_icmp_identifier(args.identifier)
 
 # Step 2: Set up transport encoding
 transport = Channel_Transport.Base64(args.encoding)

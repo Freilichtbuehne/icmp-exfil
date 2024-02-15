@@ -17,14 +17,33 @@ class ICMP_Channel:
         # Block size in bytes
         self._block_size = 32
         self._log = logger
+        self._icmp_identifier = 1
+        self._sequence_number = 0
 
     @property
     def block_size(self) -> int:
         return self._block_size
 
+    @property
+    def sequence_number(self) -> int:
+        return self._sequence_number & 0xFFFF
+
+    @property
+    def sequence_number_next(self) -> int:
+        self._sequence_number += 1
+        return self._sequence_number & 0xFFFF
+
+    @property
+    def icmp_identifier(self) -> int:
+        return self._icmp_identifier
+
     def set_transport(self, transport: any) -> None:
         assert hasattr(transport, 'encode') and hasattr(transport, 'decode'), "Transport must have encode and decode methods"
         self._transport = transport
+
+    def set_icmp_identifier(self, identifier: int) -> None:
+        assert 1 <= identifier <= 65535, "Identifier must be between 1 and 65535"
+        self._icmp_identifier = identifier
 
     def pad(self, data: bytes, block_size: int) -> bytes:
         if len(data) == 0:
@@ -67,7 +86,7 @@ class ICMP_Channel:
     def close(self) -> None:
         if self._socket:
             self._socket.close()
-            self._log.info('Socket closed')
+            self._log.debug('Socket closed')
 
 class ICMP_Channel_Client(ICMP_Channel):
     def __init__(self, logger: Logger):
@@ -76,20 +95,16 @@ class ICMP_Channel_Client(ICMP_Channel):
         super().__init__(logger)
 
     # TODO: return sequence number or id?
-    # TODO: delay?
     def send_single_block(self, buffer: bytes, dst_ip: str) -> None:
         assert self._socket != None, "socket is None"
-        # TODO: assert buffer size
-        #assert len(buffer) == self._block_size, f"buffer size does not match {self._block_size} bytes, got {len(buffer)} bytes"
 
-        # https://docs.python.org/3/library/struct.html
         header = struct.pack("!BBHHH",
             # https://en.wikipedia.org/wiki/Internet_Control_Message_Protocol#Control_messages
             8, # Echo Request (8 Bit)
             0, # only 0 is allowed (8 Bit)
             0, # checksum initialized with 0 (16 Bit)
-            0, # identifier TODO (16 Bit)
-            0  # sequence number TODO (16 Bit)
+            self.icmp_identifier, # identifier (16 Bit)
+            self.sequence_number_next  # sequence number (16 Bit)
         )
         checksum = self._ICMP_Channel__checksum(header + buffer)
         packet = header[:2] + checksum + header[4:] + buffer
@@ -118,10 +133,9 @@ class ICMP_Channel_Client(ICMP_Channel):
         # Step 4: Fragment data
         blocks = self._ICMP_Channel__fragment(buffer, self._block_size)
         block_count = len(blocks)
-        
+
         # Step 5: Send each block
         for i in range(block_count):
-            # TODO: progress bar
             self.send_single_block(blocks[i], dst_ip)
             self._log.info(f'Sent paket {i+1}/{block_count}')
             time.sleep(delay / 1000)
@@ -139,7 +153,7 @@ class ICMP_Channel_Server(ICMP_Channel):
         while len(received) < expected_size:
             data = self.receive_data()
             if data == b'':
-                self._log.info('Timeout reached')
+                self._log.warning('Timeout reached')
                 break
             received += data
 
@@ -164,20 +178,35 @@ class ICMP_Channel_Server(ICMP_Channel):
             if time.time() - last_run < timeout: continue
 
             try:
+                # Receive data
                 response, address = self._socket.recvfrom(1024)
-                self._log.info(f'Received {len(response)} bytes from {address}')
+                sequence_number = response[26] << 8 | response[27]
+                identifier = response[24] << 8 | response[25]
+
+                # Check if the packet has correct identifier and sequence number
+                if identifier != self.icmp_identifier:
+                    self._log.warning(f'Identifier mismatch: {identifier} != {self.icmp_identifier}')
+                    continue
+
+                if sequence_number != self.sequence_number_next:
+                    self._log.warning(f'Sequence number mismatch: {sequence_number} != {self.sequence_number}')
+                    continue
+
+                self._log.debug(f'Received {len(response)} bytes from {address}: seq={sequence_number}, id={identifier}')
                 last_run = time.time()
-                # Echo Reply to the client
+
+                # Build the response packet (Echo Reply)
                 header = struct.pack("!BBHHH",
                     0 + 8, # Echo Reply (8 Bit)
                     0, # only 0 is allowed (8 Bit)
                     0, # checksum initialized with 0 (16 Bit)
-                    0, # identifier TODO (16 Bit)
-                    0  # sequence number TODO (16 Bit)
+                    self.icmp_identifier, # identifier (16 Bit)
+                    self.sequence_number  # sequence number (16 Bit)
                 )
                 checksum = self._ICMP_Channel__checksum(header + response[8:])
                 packet = header[:2] + checksum + header[4:] #+ response[8:]
-                # send the packet back to the client
+
+                # Send the packet back to the client
                 self._socket.sendto(packet, (socket.gethostbyname(address[0]), 1))
                 self._log.debug(f'Sent Echo Reply to {address}')
                 return response[28:]
