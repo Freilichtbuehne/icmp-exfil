@@ -3,8 +3,17 @@
 import os, socket, argparse, logging
 from channel import ICMP_Channel_Client, ICMP_Channel_Server, Channel_Transport
 
+description = '''Start client to exfiltrate messages to receiver:
+\tpython3 client.py message.txt 127.0.0.1
+Start client to exfiltrate messages to receiver with 100 ms delay:
+\tpython3 client.py message.txt 127.0.0.1 -d 100'''
+
 # Initialize argument parsing
-parser = argparse.ArgumentParser()
+class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter): pass
+parser = argparse.ArgumentParser(
+    epilog=description,
+    formatter_class=CustomFormatter,
+    description="Exfiltration server for ICMP channel")
 parser.add_argument("inputfile", help="File to read exfiltration data from")
 parser.add_argument("receiver", help="IPv4 of receiver")
 parser.add_argument("-d", "--delay", type=int, default=0, help="Delay between sending packets in ms")

