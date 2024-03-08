@@ -185,11 +185,11 @@ class ICMP_Channel_Server(ICMP_Channel):
 
                 # Check if the packet has correct identifier and sequence number
                 if identifier != self.icmp_identifier:
-                    self._log.warning(f'Identifier mismatch: {identifier} != {self.icmp_identifier}')
+                    self._log.warning(f'Identifier mismatch: expected {self.icmp_identifier}, got {identifier}')
                     continue
 
                 if sequence_number != self.sequence_number_next:
-                    self._log.warning(f'Sequence number mismatch: {sequence_number} != {self.sequence_number}')
+                    self._log.warning(f'Sequence number mismatch: expected {self.sequence_number_next}, got {sequence_number}')
                     continue
 
                 self._log.debug(f'Received {len(response)} bytes from {address}: seq={sequence_number}, id={identifier}')
